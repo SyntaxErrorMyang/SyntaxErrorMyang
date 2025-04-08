@@ -1,0 +1,214 @@
+-- MYANGZONE PVP Hub - Enhanced with Attack Speed and Player Highlights
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "MYANGZONE PVP",
+    LoadingTitle = "OP BLOXFRUIT PVP",
+    LoadingSubtitle = "Syntax Error",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = nil, -- Create a custom folder for your hub/game
+        FileName = "Big Hub"
+    },
+    Discord = {
+        Enabled = true,
+        Invite = "https://discord.gg/WRxMBUCVsb", -- The Discord invite code
+        RememberJoins = true -- Set this to false to make them join the discord every time
+    },
+    KeySystem = false,
+    KeySettings = {
+        Title = "Untitled",
+        Subtitle = "Key System",
+        Note = "No method of obtaining the key is provided",
+        FileName = "Key",
+        SaveKey = true,
+        GrabKeyFromSite = false,
+        Key = {"Hello"}
+    }
+})
+
+local PlayerTab = Window:CreateTab("Player", 4483362458)
+local CombatTab = Window:CreateTab("Combat", 4483362458)
+local VisualsTab = Window:CreateTab("Visuals", 4483362458)
+
+-- Player Tab
+PlayerTab:CreateSlider({
+    Name = "WalkSpeed",
+    Range = {1, 100},
+    Increment = 1,
+    Suffix = " Speed",
+    CurrentValue = 16,
+    Flag = "WalkSpeed",
+    Callback = function(Value)
+        if game.Players.LocalPlayer.Character then
+            game.Players.LocalPlayer.Character:SetAttribute("SpeedMultiplier", Value)
+        end
+    end,
+})
+
+PlayerTab:CreateSlider({
+    Name = "Dash Length",
+    Range = {10, 1000},
+    Increment = 10,
+    Suffix = " Length",
+    CurrentValue = 100,
+    Flag = "DashLength",
+    Callback = function(Value)
+        if game.Players.LocalPlayer.Character then
+            game.Players.LocalPlayer.Character:SetAttribute("DashLength", Value)
+        end
+    end,
+})
+
+PlayerTab:CreateSlider({
+    Name = "Jump Height",
+    Range = {10, 500},
+    Increment = 10,
+    Suffix = " Height",
+    CurrentValue = 50,
+    Flag = "JumpHeight",
+    Callback = function(Value)
+        if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
+            game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
+        end
+    end,
+})
+
+-- Combat Tab
+local attackSpeedMultiplier = 1
+local attackSpeedEnabled = false
+local lastAttackTime = 0
+local attackDebounce = false
+
+CombatTab:CreateSlider({
+    Name = "Attack Speed Multiplier",
+    Range = {1, 5},
+    Increment = 0.1,
+    Suffix = "x Speed",
+    CurrentValue = 1,
+    Flag = "AttackSpeedMultiplier",
+    Callback = function(Value)
+        attackSpeedMultiplier = Value
+        print("Attack Speed Multiplier set to:", attackSpeedMultiplier)
+    end,
+})
+
+CombatTab:CreateToggle({
+    Name = "Enable Attack Speed",
+    Default = false,
+    Flag = "EnableAttackSpeed",
+    Callback = function(State)
+        attackSpeedEnabled = State
+        print("Attack Speed Enabled:", attackSpeedEnabled)
+    end,
+})
+
+local userInputService = game:GetService("UserInputService")
+
+local function tryFastAttack()
+    if attackSpeedEnabled and not attackDebounce then
+        local currentTime = tick()
+        local baseCooldown = 0.2 -- Adjust this based on typical attack cooldowns
+        if currentTime - lastAttackTime >= (baseCooldown / attackSpeedMultiplier) then
+            attackDebounce = true
+            lastAttackTime = currentTime
+
+            userInputService:InputBegan(Enum.UserInputType.MouseButton1, false)
+            wait(0.05) -- Short press
+            userInputService:InputEnded(Enum.UserInputType.MouseButton1, false)
+
+            wait(0.05 / attackSpeedMultiplier)
+            attackDebounce = false
+        end
+    end
+end
+
+userInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if not gameProcessedEvent and input.UserInputType == Enum.UserInputType.MouseButton1 then
+        tryFastAttack()
+    end
+end)
+
+-- Visuals Tab
+local highlightEnabled = false
+local highlightColor = Color3.fromRGB(255, 0, 0) -- Red highlight color
+local highlightedPlayers = {}
+local playersService = game:GetService("Players")
+local runService = game:GetService("RunService")
+
+VisualsTab:CreateColorPicker({
+    Name = "Highlight Color",
+    Default = highlightColor,
+    Flag = "HighlightColor",
+    Callback = function(Color)
+        highlightColor = Color
+        if highlightEnabled then
+            updatePlayerHighlights()
+        end
+        print("Highlight Color set to:", highlightColor)
+    end,
+})
+
+VisualsTab:CreateToggle({
+    Name = "Enable Player Highlights",
+    Default = false,
+    Flag = "EnablePlayerHighlights",
+    Callback = function(State)
+        highlightEnabled = State
+        updatePlayerHighlights()
+        print("Player Highlights Enabled:", highlightEnabled)
+    end,
+})
+
+local function highlightPlayer(player)
+    if highlightedPlayers[player] then return end
+    local character = player.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local highlight = Instance.new("Highlight")
+        highlight.FillColor = highlightColor
+        highlight.OutlineColor = highlightColor
+        highlight.Parent = character
+        highlightedPlayers[player] = highlight
+    end
+end
+
+local function removeHighlight(player)
+    if highlightedPlayers[player] then
+        highlightedPlayers[player]:Destroy()
+        highlightedPlayers[player] = nil
+    end
+end
+
+local function updatePlayerHighlights()
+    if highlightEnabled then
+        for _, player in pairs(playersService:GetPlayers()) do
+            if player ~= game.Players.LocalPlayer then
+                highlightPlayer(player)
+            end
+        end
+    else
+        for player, _ in pairs(highlightedPlayers) do
+            removeHighlight(player)
+        end
+        highlightedPlayers = {}
+    end
+end
+
+playersService.PlayerAdded:Connect(function(player)
+    if highlightEnabled and player ~= game.Players.LocalPlayer then
+        highlightPlayer(player)
+    end
+end)
+
+playersService.PlayerRemoving:Connect(function(player)
+    removeHighlight(player)
+end)
+
+runService.RenderStepped:Connect(function()
+    if highlightEnabled then
+        updatePlayerHighlights() -- Keep highlights updated, especially for respawning players
+    end
+end)
+
+print("MYANGZONE PVP Hub Loaded!")
